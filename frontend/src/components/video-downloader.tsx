@@ -16,6 +16,8 @@ import {
   Sparkles,
   Settings2,
   Wand2,
+  BarChart2,
+  Server
 } from "lucide-react";
 import {
   analyzeVideo,
@@ -24,8 +26,10 @@ import {
   getDownloadUrl,
   formatDuration,
   formatBytes,
+  getSystemStats,
   type VideoMetadata,
   type JobStatus,
+  type SystemStats,
   ApiError,
 } from "@/lib/api";
 import { isValidVideoUrl, looksLikeUrl } from "@/lib/url-utils";
@@ -63,6 +67,12 @@ export default function VideoDownloader() {
   
   // History state
   const [history, setHistory] = useState<DownloadHistoryItem[]>([]);
+  
+  // Dashboard & Settings state
+  const [showStats, setShowStats] = useState<boolean>(false);
+  const [statsData, setStatsData] = useState<SystemStats | null>(null);
+  const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [apiUrlInput, setApiUrlInput] = useState<string>("");
 
   const inputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -84,6 +94,21 @@ export default function VideoDownloader() {
       return next;
     });
   }, []);
+
+  const loadStats = useCallback(async () => {
+    try {
+      const data = await getSystemStats();
+      setStatsData(data);
+    } catch {
+      // transient
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showStats) {
+      loadStats();
+    }
+  }, [showStats, loadStats]);
 
   useEffect(() => {
     return () => {
@@ -753,11 +778,117 @@ export default function VideoDownloader() {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="shrink-0 text-center py-6 pb-safe-bottom">
-        <p className="text-[11px] text-white/15 font-medium tracking-[0.08em] uppercase">
-          Authorized Personal Use
-        </p>
+      <footer className="shrink-0 flex items-center justify-center gap-6 py-6 pb-safe-bottom">
+        <button
+          onClick={() => setShowStats(true)}
+          className="flex items-center gap-1.5 text-[12px] text-white/30 hover:text-white/60 font-medium tracking-[0.05em] uppercase transition-colors"
+        >
+          <BarChart2 className="w-3.5 h-3.5" />
+          Dashboard
+        </button>
+        <button
+          onClick={() => {
+            setApiUrlInput(localStorage.getItem("vdp_api_url") || "");
+            setShowSettings(true);
+          }}
+          className="flex items-center gap-1.5 text-[12px] text-white/30 hover:text-white/60 font-medium tracking-[0.05em] uppercase transition-colors"
+        >
+          <Server className="w-3.5 h-3.5" />
+          Backend Settings
+        </button>
       </footer>
+
+      {/* ── Modals ── */}
+      <AnimatePresence>
+        {showStats && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-3xl p-6 shadow-2xl relative"
+            >
+              <button
+                onClick={() => setShowStats(false)}
+                className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 text-white/50 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-6">
+                <BarChart2 className="w-5 h-5 text-blue-400" />
+                Project Stats
+              </h2>
+              {statsData ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
+                      <p className="text-[11px] text-white/40 uppercase font-semibold mb-1">Downloads</p>
+                      <p className="text-2xl font-bold text-white">{statsData.successful_jobs}</p>
+                    </div>
+                    <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
+                      <p className="text-[11px] text-white/40 uppercase font-semibold mb-1">Processed</p>
+                      <p className="text-2xl font-bold text-white">{formatBytes(statsData.total_bytes)}</p>
+                    </div>
+                  </div>
+                  <div className="bg-black/40 p-4 rounded-2xl border border-white/5 flex items-center justify-between">
+                    <span className="text-[13px] text-white/60 font-medium">Magic Enhance Used</span>
+                    <span className="text-[15px] font-bold text-blue-400">{statsData.enhanced_count} times</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-10 flex justify-center">
+                  <Loader2 className="w-6 h-6 text-white/30 animate-spin" />
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+
+        {showSettings && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-3xl p-6 shadow-2xl relative"
+            >
+              <button
+                onClick={() => setShowSettings(false)}
+                className="absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 text-white/50 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
+                <Server className="w-5 h-5 text-emerald-400" />
+                Backend Configuration
+              </h2>
+              <p className="text-[12px] text-white/40 mb-6 leading-relaxed">
+                Provide a custom URL for the backend API (e.g. Cloudflare tunnel or your local port). Leave empty to auto-detect.
+              </p>
+              <input
+                type="text"
+                value={apiUrlInput}
+                onChange={(e) => setApiUrlInput(e.target.value)}
+                placeholder="http://127.0.0.1:8001"
+                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-[14px] text-white placeholder:text-white/20 focus:outline-none focus:border-white/30 mb-4"
+              />
+              <button
+                onClick={() => {
+                  if (apiUrlInput.trim()) {
+                    localStorage.setItem("vdp_api_url", apiUrlInput.trim());
+                  } else {
+                    localStorage.removeItem("vdp_api_url");
+                  }
+                  window.location.reload();
+                }}
+                className="w-full py-3 rounded-xl bg-white text-black text-[14px] font-semibold hover:bg-white/90 active:scale-[0.98] transition-all"
+              >
+                Save & Restart
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

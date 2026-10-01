@@ -2,7 +2,19 @@
  * API client for the video downloader backend.
  */
 
-const API_BASE = ""; // Empty to use relative paths (proxied via next.config.ts)
+const getApiBase = () => {
+  if (typeof window !== "undefined") {
+    const custom = localStorage.getItem("vdp_api_url");
+    if (custom) return custom;
+    // If hosted on a public domain, default to the user's local backend port
+    if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      return "http://127.0.0.1:8001";
+    }
+  }
+  return ""; // Use Next.js rewrites locally
+};
+
+const API_BASE = getApiBase();
 
 export interface VideoFormat {
   quality: string;
@@ -123,4 +135,17 @@ export function formatBytes(bytes: number | null): string {
   if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
   return `${(bytes / 1073741824).toFixed(2)} GB`;
+}
+
+export interface SystemStats {
+  total_jobs: number;
+  successful_jobs: number;
+  total_bytes: number;
+  formats: Record<string, number>;
+  enhanced_count: number;
+}
+
+export async function getSystemStats(): Promise<SystemStats> {
+  const response = await fetch(`${API_BASE}/api/stats`);
+  return handleResponse<SystemStats>(response);
 }

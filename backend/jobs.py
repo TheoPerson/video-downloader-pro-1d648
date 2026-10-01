@@ -27,6 +27,8 @@ class JobState(str, enum.Enum):
     CLEANED = "cleaned"
 
 
+from .stats import stats_manager
+
 @dataclass
 class Job:
     """Represents a video download job."""
@@ -54,6 +56,8 @@ class Job:
         if error:
             self.error = error
         logger.info(f"Job {self.id[:8]}: {state.value}" + (f" - {error}" if error else ""))
+        if state in (JobState.READY, JobState.FAILED):
+            stats_manager.record_job(self.to_dict())
 
     def to_dict(self) -> dict:
         """Serialize job for API response."""

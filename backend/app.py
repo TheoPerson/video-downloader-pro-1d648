@@ -52,9 +52,9 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url],
-    allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -220,6 +220,12 @@ async def _run_download(job: Job):
                 job.update_state(JobState.FAILED, str(e))
             logger.error(f"Job {job.id[:8]} failed: {e}")
 
+
+@app.get("/api/stats")
+async def get_stats():
+    """Get usage statistics (for the project manager)."""
+    from .stats import stats_manager
+    return stats_manager.get_summary()
 
 @app.get("/api/jobs/{job_id}")
 async def get_job_status(job_id: str):
